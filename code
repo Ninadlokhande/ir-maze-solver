@@ -1,0 +1,143 @@
+// --- PIN DEFINITIONS ---
+
+// Define motor driver pins for TB6612FNG
+const int AIN1 = 7;  // Motor A (Right) Direction 1
+const int AIN2 = 8;  // Motor A (Right) Direction 2
+const int PWMA = 9;  // Motor A (Right) Speed (PWM)
+const int BIN1 = 4;  // Motor B (Left) Direction 1
+const int BIN2 = 5;  // Motor B (Left) Direction 2
+const int PWMB = 6;  // Motor B (Left) Speed (PWM)
+const int STBY = 3;  // Standby pin for TB6612FNG
+
+// Define IR Sensor Pins (Digital Output)
+// Ensure these match your wiring to JP5 and JP6 headers
+const int SENSOR_LEFT = 11;       // Connected to Z-Limit pin
+const int SENSOR_FRONT_LEFT = 12; // Connected to Y-Limit pin
+const int SENSOR_FRONT_RIGHT = 13;// Connected to X-Limit pin
+const int SENSOR_RIGHT = A2;      // Connected to Probe pin (using A2 as digital)
+
+
+// --- PARAMETERS ---
+int motorSpeed = 120; // Base speed, adjust as needed
+
+void setup() {
+  // Set all motor pins as outputs
+  pinMode(AIN1, OUTPUT);
+  pinMode(AIN2, OUTPUT);
+  pinMode(PWMA, OUTPUT);
+  pinMode(BIN1, OUTPUT);
+  pinMode(BIN2, OUTPUT);
+  pinMode(PWMB, OUTPUT);
+  pinMode(STBY, OUTPUT);
+
+  // Set all sensor pins as inputs
+  pinMode(SENSOR_LEFT, INPUT);
+  pinMode(SENSOR_FRONT_LEFT, INPUT);
+  pinMode(SENSOR_FRONT_RIGHT, INPUT);
+  pinMode(SENSOR_RIGHT, INPUT);
+
+  // Enable the motor driver
+  digitalWrite(STBY, HIGH);
+  
+  Serial.begin(9600); // For debugging
+  delay(2000); // Pause for 2 seconds at start
+}
+
+void loop() {
+  // Read the state of all sensors. LOW means a wall is detected.
+  bool left_wall = (digitalRead(SENSOR_LEFT) == LOW);
+  bool front_left_wall = (digitalRead(SENSOR_FRONT_LEFT) == LOW);
+  bool front_right_wall = (digitalRead(SENSOR_FRONT_RIGHT) == LOW);
+  bool right_wall = (digitalRead(SENSOR_RIGHT) == LOW);
+
+  // Print status for debugging
+  Serial.print(left_wall); Serial.print(" | ");
+  Serial.print(front_left_wall); Serial.print(" | ");
+  Serial.print(front_right_wall); Serial.print(" | ");
+  Serial.println(right_wall);
+
+  // --- DECISION LOGIC ---
+
+  if (front_left_wall && front_right_wall) {
+    // Front is completely blocked -> Must turn
+    Serial.println("Action: Turn Left (Blocked)");
+    turnLeft();
+    delay(300); // Turn for a fixed duration
+  }
+  else if (front_left_wall) {
+    // Path ahead is partially blocked on the left -> Sharp right turn
+    Serial.println("Action: Sharp Right Turn");
+    turnRight();
+  }
+  else if (front_right_wall) {
+    // Path ahead is partially blocked on the right -> Sharp left turn
+    Serial.println("Action: Sharp Left Turn");
+    turnLeft();
+  }
+  else if (right_wall) {
+    // Path ahead is clear, but too close to right wall -> Steer left
+    Serial.println("Action: Steer Left");
+    steerLeft();
+  }
+  else if (left_wall) {
+    // Path ahead is clear, but too close to left wall -> Steer right
+    Serial.println("Action: Steer Right");
+    steerRight();
+  }
+  else {
+    // Path is clear -> Move forward
+    Serial.println("Action: Forward");
+    moveForward();
+  }
+  
+  delay(10); // Short delay to prevent erratic behavior
+}
+
+// --- MOTOR CONTROL FUNCTIONS ---
+
+void moveForward() {
+  // Right Motor Forward
+  digitalWrite(AIN1, HIGH);
+  digitalWrite(AIN2, LOW);
+  analogWrite(PWMA, motorSpeed);
+  // Left Motor Forward
+  digitalWrite(BIN1, HIGH);
+  digitalWrite(BIN2, LOW);
+  analogWrite(PWMB, motorSpeed);
+}
+
+void turnLeft() {
+  // Right Motor Forward
+  digitalWrite(AIN1, HIGH);
+  digitalWrite(AIN2, LOW);
+  analogWrite(PWMA, motorSpeed + 20);
+  // Left Motor Backward
+  digitalWrite(BIN1, LOW);
+  digitalWrite(BIN2, HIGH);
+  analogWrite(PWMB, motorSpeed + 20);
+}
+
+void turnRight() {
+  // Right Motor Backward
+  digitalWrite(AIN1, LOW);
+  digitalWrite(AIN2, HIGH);
+  analogWrite(PWMA, motorSpeed + 20);
+  // Left Motor Forward
+  digitalWrite(BIN1, HIGH);
+  digitalWrite(BIN2, LOW);
+  analogWrite(PWMB, motorSpeed + 20);
+}
+
+void steerLeft() { // Slower left wheel
+  digitalWrite(AIN1, HIGH); digitalWrite(AIN2, LOW);
+  analogWrite(PWMA, motorSpeed);
+  digitalWrite(BIN1, HIGH); digitalWrite(BIN2, LOW);
+  analogWrite(PWMB, motorSpeed / 2); // Slow down left wheel
+}
+
+void steerRight() { // Slower right wheel
+  digitalWrite(AIN1, HIGH); digitalWrite(AIN2, LOW);
+  analogWrite(PWMA, motorSpeed / 2); // Slow down right wheel
+  digitalWrite(BIN1, HIGH); digitalWrite(BIN2, LOW);
+  analogWrite(PWMB, motorSpeed);
+}
